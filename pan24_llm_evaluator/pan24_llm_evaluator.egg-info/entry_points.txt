@@ -1,0 +1,2 @@
+[console_scripts]
+evaluator = pan24_llm_evaluator.evaluator:main

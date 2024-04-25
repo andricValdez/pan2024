@@ -1,0 +1,8 @@
+
+datasets/pan24/*
+datasets/semeval24/*
+!datasets/.gitkeep
+outputs/*
+inputs/*
+!outputs/.gitkeep
+!inputs/.gitkeep

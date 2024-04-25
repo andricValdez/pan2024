@@ -1,0 +1,14 @@
+Metadata-Version: 2.1
+Name: pan24-llm-evaluator
+Version: 1.0.0
+Summary: Evaluator for the PAN'24 Generative AI Authorship verification shared task.
+Author: Janek Bevendorff
+License: Apache License 2.0
+Project-URL: repository, https://github.com/pan-webis-de/pan-code/tree/master/clef24/generative-authorship-verification
+Project-URL: homepage, https://pan.webis.de/clef24/pan24-web/generated-content-analysis.html
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: click>=8.1.7
+Requires-Dist: numpy>=1.26.4
+Requires-Dist: scikit-learn>=1.4.2
+Requires-Dist: tira>=0.0.125
