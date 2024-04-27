@@ -6,3 +6,5 @@ outputs/*
 inputs/*
 !outputs/.gitkeep
 !inputs/.gitkeep
+.venv
+__pycache__/

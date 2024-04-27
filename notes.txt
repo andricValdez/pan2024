@@ -1,14 +1,37 @@
 NOTES
 
+pendientes:
+    27-28/04/2024
+    - build multiple baselines using LLM and algo-ML 
+    - exec PAN baselines and evaluate
+    - build GNN Pipline Hybrid and Testing
+    - dataset partition: train, test, val (openset)
+    - dataset augmentation: human & machine
+    
+    - check and refact text2graphapi
+    - exec multiple exeperiments (design template)
+
+    - evaluation: ground truth files for test files ?
+
 datasets:
     pan24-generative-authorship-tiny-smoke-20240417-training
     pan24-generative-authorship-smoke-20240411_0-training
-    pan24-generative-authorship-smoke-test
+    pan24-generative-authorship-smoke-test ¿?
+
+dataset partition:
+    - existen 3 formatos para el dataset    
+        * set para training, contiene todos los textos mezclados (H,M) junto con su label
+        * set para testing, contiene problemas en forma de parejas de textos (id, txt1, txt2), como salida se obtienen los preds (id, is_human)
+        * set para truth testing, usaddo para evaluacion y contiene las respuestas/target para el set de testing (id, is_human)
 
 ************ Local test:
-python main.py /c/Users/anvaldez/Documents/Docto/Projects/pan2024/inputs/test.jsonl /c/Users/anvaldez/Documents/Docto/Projects/pan2024/outputs
+    python main.py /c/Users/anvaldez/Documents/Docto/Projects/pan2024/inputs/test.jsonl /c/Users/anvaldez/Documents/Docto/Projects/pan2024/outputs
 
-tira-run   --input-dataset generative-ai-authorship-verification-panclef-2024/pan24-generative-authorship-tiny-smoke-20240417-training   --image tira/submission-base-image:1.0.0   --command 'python main.py $inputDataset/dataset.jsonl $outputDir' 
+    python main.py /c/Users/anvaldez/Documents/Docto/Projects/pan2024/inputs/Partition_A_test_set.jsonl /c/Users/anvaldez/Documents/Docto/Projects/pan2024/outputs
+
+    evaluator  /c/Users/anvaldez/Documents/Docto/Projects/pan2024/outputs/Model_A_clf_train_preds.jsonl  /c/Users/anvaldez/Documents/Docto/Projects/pan2024/inputs/Partition_A_test_truth.jsonl  /c/Users/anvaldez/Documents/Docto/Projects/pan2024/outputs
+
+    tira-run   --input-dataset generative-ai-authorship-verification-panclef-2024/pan24-generative-authorship-tiny-smoke-20240417-training   --image tira/submission-base-image:1.0.0   --command 'python main.py $inputDataset/dataset.jsonl $outputDir' 
 
 
 ************ TIRA - Docker:
@@ -21,24 +44,25 @@ tira-run   --input-dataset generative-ai-authorship-verification-panclef-2024/pa
 
 ************  EXEC PRED BASELINES
 
-tira-run --image ghcr.io/pan-webis-de/pan24-generative-authorship-baselines:latest --input-dataset generative-ai-authorship-verification-panclef-2024/pan24-generative-authorship-smoke-20240411_0-training --command 'baseline binoculars $inputDataset/dataset.jsonl $outputDir'
+    tira-run --image ghcr.io/pan-webis-de/pan24-generative-authorship-baselines:latest --input-dataset generative-ai-authorship-verification-panclef-2024/pan24-generative-authorship-smoke-20240411_0-training --command 'baseline binoculars $inputDataset/dataset.jsonl $outputDir'
 
-docker run --rm \
-    -v /c/Users/anvaldez/Documents/Docto/Projects/pan2024/tira-output/test.jsonl:/dataset.jsonl \
-    -v /c/Users/anvaldez/Documents/Docto/Projects/pan2024/tira-output:/out \
-    --user=$(id -u) \
-    --gpus=all \
-    ghcr.io/pan-webis-de/pan24-generative-authorship-baselines:latest \
-    BASELINENAME ppmd /dataset.jsonl /out
+    docker run --rm \
+        -v /c/Users/anvaldez/Documents/Docto/Projects/pan2024/tira-output/test.jsonl:/dataset.jsonl \
+        -v /c/Users/anvaldez/Documents/Docto/Projects/pan2024/tira-output:/out \
+        --user=$(id -u) \
+        --gpus=all \
+        ghcr.io/pan-webis-de/pan24-generative-authorship-baselines:latest \
+        BASELINENAME ppmd /dataset.jsonl /out
 
 
 ************  EXEC EVALUATOR BASELINES
 
-evaluator  /c/Users/anvaldez/Documents/Docto/Projects/pan2024/outputs/answers.jsonl  /c/Users/anvaldez/Documents/Docto/Projects/pan2024/inputs/test_truth.jsonl  /c/Users/anvaldez/Documents/Docto/Projects/pan2024/outputs
+    evaluator  /c/Users/anvaldez/Documents/Docto/Projects/pan2024/outputs/answers.jsonl  /c/Users/anvaldez/Documents/Docto/Projects/pan2024/inputs/test_truth.jsonl  /c/Users/anvaldez/Documents/Docto/Projects/pan2024/outputs
 
-docker run --rm \
-    -v /c/Users/anvaldez/Documents/Docto/Projects/pan2024/outputs/answers.jsonl:/answers.jsonl \
-    -v /c/Users/anvaldez/Documents/Docto/Projects/pan2024/inputs/test_truth.jsonl:/test_truth.jsonl \
-    -v /c/Users/anvaldez/Documents/Docto/Projects/pan2024/outputs:/out \
-    ghcr.io/pan-webis-de/pan24-generative-authorship-evaluator:latest \
-    evaluator /answers.jsonl /test_truth.jsonl /out
+    docker run --rm \
+        -v /c/Users/anvaldez/Documents/Docto/Projects/pan2024/outputs/answers.jsonl:/answers.jsonl \
+        -v /c/Users/anvaldez/Documents/Docto/Projects/pan2024/inputs/test_truth.jsonl:/test_truth.jsonl \
+        -v /c/Users/anvaldez/Documents/Docto/Projects/pan2024/outputs:/out \
+        ghcr.io/pan-webis-de/pan24-generative-authorship-evaluator:latest \
+        evaluator /answers.jsonl /test_truth.jsonl /out
+

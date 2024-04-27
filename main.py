@@ -22,92 +22,61 @@ from sklearn.utils import shuffle
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
 
-
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__)) 
-OUTPUT_DIR_PATH = ROOT_DIR + '/outputs'
-INPUTS_DIR_PATH = ROOT_DIR + '/inputs'
-ROOT_PAN24_PATH = ROOT_DIR + '/datasets/pan24'
-ROOT_SEMEVAL24_PATH = ROOT_DIR + '/datasets/semeval24'
-
-
-def save_data(data, file_name, path=OUTPUT_DIR_PATH, format_file='.pkl', compress=False):
-    path_file = os.path.join(path, file_name + format_file)
-    joblib.dump(data, path_file, compress=compress)
+from datasets import load_dataset
+from transformers import GPT2Tokenizer
+from transformers import GPT2ForSequenceClassification
+from transformers import TrainingArguments, Trainer
+import evaluate
 
 
-def load_data(file_name, path=OUTPUT_DIR_PATH, format_file='.pkl', compress=False):
-    path_file = os.path.join(path, file_name + format_file)
-    return joblib.load(path_file)
+import utils
+
+metric = evaluate.load("accuracy")
 
 
-def read_json(file_path):
-  print(file_path)
-  df = pd.read_json(file_path, lines=True)
-  df = df.sort_values('id', ascending=True)
-  return df
+def llm_baseline():
+    def tokenize_function(examples):
+        return tokenizer(examples["text"], padding="max_length", truncation=True)
+    
+    def compute_metrics(eval_pred):
+        logits, labels = eval_pred
+        predictions = np.argmax(logits, axis=-1)
+        return metric.compute(predictions=predictions, references=labels)
+
+    dataset = load_dataset("mteb/tweet_sentiment_extraction")
+    df = pd.DataFrame(dataset['train'])
+    print(df.info())
+    return
+
+    # Loading the dataset to train our model
+    dataset = load_dataset("mteb/tweet_sentiment_extraction")
+    tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+    tokenizer.pad_token = tokenizer.eos_token
+    tokenized_datasets = dataset.map(tokenize_function, batched=True)
+
+    small_train_dataset = tokenized_datasets["train"].shuffle(seed=42).select(range(1000))
+    small_eval_dataset = tokenized_datasets["test"].shuffle(seed=42).select(range(1000))
+
+    model = GPT2ForSequenceClassification.from_pretrained("gpt2", num_labels=3)
+
+    training_args = TrainingArguments(
+        output_dir="test_trainer",
+        #evaluation_strategy="epoch",
+        per_device_train_batch_size=1,  # Reduce batch size here
+        per_device_eval_batch_size=1,    # Optionally, reduce for evaluation as well
+        gradient_accumulation_steps=4
+    )
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=small_train_dataset,
+        eval_dataset=small_eval_dataset,
+        compute_metrics=compute_metrics,
+    )
+    trainer.train()
+    trainer.evaluate()
 
 
-def save_json(data, file_path):
-    with open(file_path, "w") as outfile:
-        for element in data:  
-            json.dump(element, outfile)  
-            outfile.write("\n")  
-
-
-def plot_chart(x, y, labels, width=0.5, figsize=(20,4)):
-  plt.subplots(figsize=figsize)
-  plt.xticks(rotation='vertical')
-  plt.bar(x, y, tick_label = labels,width = width, color = ['red', 'green'])
-  plt.show()
-
-
-def build_pan_test_file(test_set):
-    #{"id": "iixcWBmKWQqLAwVXxXGBGg", "text1": "...", "text2": "..."}
-    test_set = shuffle(test_set)
-    pan_test_human = shuffle(test_set[test_set['class'] == 1])
-    pan_test_machine = shuffle(test_set[test_set['class'] == 0])
-    pan24_test = []
-    rand_opt = [0,1]
-    for i in range(0, min(len(pan_test_human), len(pan_test_machine))):
-        texts = [pan_test_human.iloc[i]['text'], pan_test_machine.iloc[i]['text']]
-        labels = [pan_test_human.iloc[i]['class'], pan_test_machine.iloc[i]['class']]
-        rand = random.choice(rand_opt)
-        d = {
-            'id': i,
-            'label1': int(labels[rand]),
-            'label2': int(labels[rand-1]),
-            'text1': texts[rand],
-            'text2': texts[rand-1],
-        }
-        pan24_test.append(d)
-    return pan24_test
-
-def data_augmentation():
-    source = 'wikipedia'
-    subtaskA_train_monolingual = read_json(file_path=ROOT_SEMEVAL24_PATH + '/subtaskA_train_monolingual.jsonl')
-    #print(subtaskA_train_monolingual.info())
-    #print("\n", semeval_human_set['source'].value_counts())
-    semeval_human_set = subtaskA_train_monolingual[(subtaskA_train_monolingual['label'] == 0)]
-    semeval_human_subset = semeval_human_set[(semeval_human_set['source'] == source)]
-    semeval_human_subset.rename(columns={'label': 'class'}, inplace=True)
-    semeval_human_subset['id'] = semeval_human_subset.apply(lambda row: f'semeval-{source}-{str(row["id"])}', axis=1)
-    semeval_human_subset['class'] = 1
-    del semeval_human_subset['source']
-    return semeval_human_subset
-
-
-def dataset_partition(dataset):
-    pan24_machine = dataset[dataset['class'] == 0]
-    pan24_human = dataset.loc[dataset['class'] == 1]
-    train_machine, test_machine = train_test_split(pan24_machine, test_size=0.2)
-    train_human, test_human = train_test_split(pan24_human, test_size=0.2)
-    train = pd.concat([train_human, train_machine])
-    test = pd.concat([test_human, test_machine])
-    train.reset_index(inplace=True)
-    test.reset_index(inplace=True)
-    del train['level_0']
-    del test['level_0'] 
-    return train, test
 
 
 def build_pipeline(model):
@@ -119,59 +88,30 @@ def build_pipeline(model):
 
 
 def main(known_args, unknown_args):
+    llm_baseline()
+    return
+
     #print(known_args)
     print(unknown_args)
-    model = 'SGDClassifier'
-
-    '''
-    if unknown_args[0] == 'proccess_data':
-        # read and process data
-        data_human_df = read_json(ROOT_PAN24_PATH + '/human.jsonl')
-        data_human_df['class'] = 1 # human
-        data_machines_df = pd.concat([read_json(f) for f in glob.glob(ROOT_PAN24_PATH + '/machines/*.jsonl')])
-        data_machines_df.reset_index(inplace=True)
-        del data_machines_df['index']
-        data_machines_df['class'] = 0 # machine
-        dataset = pd.concat([data_human_df, data_machines_df])
-        print(dataset.info())
-        print(dataset['class'].value_counts())
-
-        # data aufmentation for human data, using semeval2024
-        semeval_human_subset = data_augmentation() 
-        pan24_dataset = dataset.copy(deep=True)
-        pan24_dataset['model'] = None
-        for index, row in pan24_dataset.iterrows():
-            if row['class'] == 0:
-                split_id = row['id'].split('/')
-                pan24_dataset.loc[index,'model'] = split_id[0]
-
-        pan24_machine = pan24_dataset[pan24_dataset['class'] == 0]
-        pan24_human = pan24_dataset.loc[pan24_dataset['class'] == 1]
-        pan24_human['model'] = 'human'
-        pan24_human = pd.concat([semeval_human_subset, pan24_human]) # concat semeval data
-        pan24_dataset = pd.concat([pan24_human, pan24_machine])
-        pan24_dataset.reset_index(inplace=True)
-        pan24_dataset = shuffle(pan24_dataset)
-
-        print(pan24_dataset.info())
-        print(pan24_dataset['class'].value_counts())
-
-        # data partition: train and test
-        train_set, test_set = dataset_partition(pan24_dataset)
-        save_data(data=train_set, file_name='train_set')
-        save_data(data=test_set, file_name='test_set')
-        test_set_dict = build_pan_test_file(test_set)
-        save_json(data=test_set_dict, file_path=INPUTS_DIR_PATH + "/test.jsonl")
+    algo_ml = 'SGDClassifier' # SGDClassifier, LinearSVC, MultinomialNB, LogisticRegression
+    model_name = 'Model_A_clf_train_' # Model_A_clf_train_, pan24_smoke_train_
+    train_set_name = 'Partition_A_train_set' # Partition_A_train_set, pan24_generative_authorship_smoke_train
+    test_set_name  = ''  #Partition_A_test.jsonl
 
     if unknown_args[0] == 'train':
-        train_set = load_data(file_name='train_set')
-        test_set = read_json(file_path=INPUTS_DIR_PATH + '/test.jsonl')
-        #test_set = load_data(file_name='test_set')
-
+        #***** read data
+        #train_set = utils.load_data(file_name=train_set_name)
+        train_set = utils.read_json(file_path=utils.INPUTS_DIR_PATH + train_set_name + '.jsonl')
         print(train_set.info())
-        print(test_set.info())
 
-        # build baseline model
+        # use only for pan24_smoke_train
+        if train_set_name == 'pan24_generative_authorship_smoke_train':
+            train_set_tmp_txt1 = pd.DataFrame({'id': train_set['id'], 'text': train_set['text1'], 'class': train_set['label_txt1']})
+            train_set_tmp_txt2 = pd.DataFrame({'id': train_set['id'], 'text': train_set['text2'], 'class': train_set['label_txt2']})
+            train_set = pd.concat([train_set_tmp_txt1, train_set_tmp_txt2])
+            print(train_set.info())
+
+        #***** build baseline model
         clf_models = {
             'LinearSVC': LinearSVC,
             'MultinomialNB': MultinomialNB,
@@ -179,65 +119,58 @@ def main(known_args, unknown_args):
             'SGDClassifier': SGDClassifier
         }
         
-        print('trainin model...')
-        pipeline = build_pipeline(model = clf_models[model])
-        # train model
-        pipeline.fit(train_set['text'], train_set['class'])
-        save_data(data=pipeline, file_name='clf_train_'+model)
-        print('Done!')
-    else:
-        pipeline = load_data(file_name='clf_train_' + model)
-        train_set = load_data(file_name='train_set')
-        test_set = read_json(file_path=INPUTS_DIR_PATH + '/test.jsonl')
-    '''
-
-    # predictions
-    pipeline = load_data(file_name='clf_train_' + model)
-    train_set = load_data(file_name='train_set')
+        #***** train model
+        print('training model...')
+        pipeline = build_pipeline(model = clf_models[algo_ml])
     
-    test_set = read_json(file_path=unknown_args[0])
-    print(test_set.info())
+        pipeline.fit(train_set['text'], train_set['class'])
+        utils.save_data(data=pipeline, file_name=model_name + algo_ml)
+        print('Done!')
 
-    #test_set = read_json(file_path=INPUTS_DIR_PATH + '/test.jsonl')
-    test_set = test_set.to_dict('records')
-    test_set = test_set[:]
-    #print(test_set[0])
+    else:
+        # predictions
+        pipeline = utils.load_data(file_name=model_name + algo_ml)
+        test_set = utils.read_json(file_path=unknown_args[0])
+        #test_set = utils.read_json(file_path=utils.INPUTS_DIR_PATH + '/test.jsonl')
+        print(test_set.info())
 
-    predictions = []
+        test_set = test_set.to_dict('records')
+        test_set = test_set[:]
+        predictions = []
 
-    for row in test_set:
-        txt1_pred = pipeline.predict([row['text1']])
-        txt2_pred = pipeline.predict([row['text2']])
-        res = None
-        #print(20*'*', row['id'])
-        #print('       Txt1  Tx2',)
-        #print('label: ', row['label1'], '   ', row['label2'])
-        #print('pred:  ', txt1_pred[0], '   ', txt2_pred[0])
+        for row in test_set:
+            txt1_pred = pipeline.predict([row['text1']])
+            txt2_pred = pipeline.predict([row['text2']])
+            res = None
+            #print(20*'*', row['id'])
+            #print('       Txt1  Tx2',)
+            #print('label: ', row['label1'], '   ', row['label2'])
+            #print('pred:  ', txt1_pred[0], '   ', txt2_pred[0])
 
-        if txt1_pred == 1:
-            #print("TEXT 1 is Human")
-            pred_proba = pipeline.predict_proba([row['text1']])[0]
-            max_pred = max(pred_proba[0], pred_proba[1])
-            res = {"id": row['id'], "is_human": round(1-max_pred,2)}
-        elif txt2_pred == 1:
-            #print("TEXT 2 is Human")
-            pred_proba = pipeline.predict_proba([row['text2']])[0]
-            max_pred = max(pred_proba[0], pred_proba[1])
-            res = {"id": row['id'], "is_human": round(max_pred,2)}
-        else: # check??
-            res = {"id": row['id'], "is_human": 0.5}
+            if txt1_pred == 1:
+                #print("TEXT 1 is Human")
+                pred_proba = pipeline.predict_proba([row['text1']])[0]
+                max_pred = max(pred_proba[0], pred_proba[1])
+                res = {"id": row['id'], "is_human": round(1-max_pred,2)}
+            elif txt2_pred == 1:
+                #print("TEXT 2 is Human")
+                pred_proba = pipeline.predict_proba([row['text2']])[0]
+                max_pred = max(pred_proba[0], pred_proba[1])
+                res = {"id": row['id'], "is_human": round(max_pred,2)}
+            else: # check??
+                res = {"id": row['id'], "is_human": 0.5}
 
+            predictions.append(res)
 
-        predictions.append(res)
+        #utils.save_json(data=predictions, file_path=utils.OUTPUT_DIR_PATH + '/' + model_name + "preds.jsonl")
+        utils.save_json(data=predictions, file_path=unknown_args[1] + '/' + model_name + "preds.jsonl")
 
-    #save_json(data=predictions, file_path=OUTPUT_DIR_PATH + "/preds.jsonl")
-    save_json(data=predictions, file_path=unknown_args[1] + "/preds.jsonl")
+        #predicted = pipeline.predict(test_set['text'])
+        #print('Accuracy:', np.mean(predicted == test_set['class']))  
+        #print(metrics.classification_report(test_set['class'], predicted,target_names=['machine', 'human']))
+        #print("Matriz Confusion: ")
+        #metrics.confusion_matrix(test_set['class'], predicted)
 
-    #predicted = pipeline.predict(test_set['text'])
-    #print('Accuracy:', np.mean(predicted == test_set['class']))  
-    #print(metrics.classification_report(test_set['class'], predicted,target_names=['machine', 'human']))
-    #print("Matriz Confusion: ")
-    #metrics.confusion_matrix(test_set['class'], predicted)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
